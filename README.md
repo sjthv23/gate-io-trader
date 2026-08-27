@@ -66,15 +66,27 @@ gate-io-trader/
 
 ## Deploy (mobile-friendly URL)
 
-This app needs a Python server (not static GitHub Pages). Deploy from GitHub to [Render](https://render.com):
+This is a **Python FastAPI app** — GitHub Pages cannot host it alone. Use **GitHub Actions** + **Render** for a public HTTPS URL (works on mobile).
 
-1. Fork or use this repo: `https://github.com/sjthv23/gate-io-trader`
-2. [Deploy on Render](https://render.com/deploy?repo=https://github.com/sjthv23/gate-io-trader) — uses `render.yaml`
-3. Set `GATE_API_KEY` and `GATE_API_SECRET` in the Render dashboard (Environment)
-4. Open your service URL on phone (e.g. `https://gate-io-trader.onrender.com`)
+### How it works
 
-The UI is responsive — tabs scroll horizontally, modals are full-width, and touch targets are sized for mobile.
+| Piece | Role |
+|-------|------|
+| **GitHub Actions** | On each push to `main`, verifies the build and triggers a Render redeploy |
+| **Render** | Runs `uvicorn` 24/7 and gives you `https://gate-io-trader.onrender.com` |
 
+Actions **deploy** the app; Render **hosts** it.
+
+### One-time setup
+
+1. [Deploy on Render](https://render.com/deploy?repo=https://github.com/sjthv23/gate-io-trader) — sign in with GitHub, set `GATE_API_KEY` / `GATE_API_SECRET`
+2. Copy **Deploy Hook** URL from Render → Service → Settings
+3. GitHub repo → Settings → Secrets → Actions → add `RENDER_DEPLOY_HOOK_URL`
+4. Open the Render URL on your phone
+
+Workflow file: `.github/workflows/deploy.yml`
+
+## Safety
 
 - Never commit `.env` or share API keys
 - Start on testnet or small amounts on live
