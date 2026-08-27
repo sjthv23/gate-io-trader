@@ -64,7 +64,17 @@ gate-io-trader/
   .env
 ```
 
-## Safety
+## Deploy (mobile-friendly URL)
+
+This app needs a Python server (not static GitHub Pages). Deploy from GitHub to [Render](https://render.com):
+
+1. Fork or use this repo: `https://github.com/sjthv23/gate-io-trader`
+2. [Deploy on Render](https://render.com/deploy?repo=https://github.com/sjthv23/gate-io-trader) — uses `render.yaml`
+3. Set `GATE_API_KEY` and `GATE_API_SECRET` in the Render dashboard (Environment)
+4. Open your service URL on phone (e.g. `https://gate-io-trader.onrender.com`)
+
+The UI is responsive — tabs scroll horizontally, modals are full-width, and touch targets are sized for mobile.
+
 
 - Never commit `.env` or share API keys
 - Start on testnet or small amounts on live

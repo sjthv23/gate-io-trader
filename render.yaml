@@ -1,0 +1,21 @@
+# Render Blueprint — https://render.com/deploy
+services:
+  - type: web
+    name: gate-io-trader
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn web_app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/status
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: GATE_USE_TESTNET
+        value: "true"
+      - key: DEFAULT_QUOTE
+        value: USDT
+      - key: GATE_API_KEY
+        sync: false
+      - key: GATE_API_SECRET
+        sync: false
