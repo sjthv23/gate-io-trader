@@ -1,0 +1,53 @@
+# Deploy the FastAPI app to Render on every push to main.
+#
+# GitHub Actions does NOT host the server itself — it triggers your cloud host.
+# One-time setup (see README):
+#   1. Create the Render service from render.yaml (Render dashboard or deploy link)
+#   2. Add GitHub repo secret: RENDER_DEPLOY_HOOK_URL (from Render → Service → Settings → Deploy Hook)
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-render
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import app
+        run: python -c "from web_app import app; print('ok', app.title)"
+
+  deploy:
+    name: Deploy to Render
+    needs: verify
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger Render deploy
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL secret is not set — skipping deploy."
+            echo "Create a Render web service, then add the Deploy Hook URL as a repo secret."
+            exit 0
+          fi
+          echo "Triggering Render deploy..."
+          curl -fsSL -X POST "$DEPLOY_HOOK"
+          echo "Deploy triggered successfully."
