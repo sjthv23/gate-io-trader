@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Gate.io Dashboard</title>
+  <link rel="stylesheet" href="/static/css/style.css?v=12" />
+  <style>
+    /* Critical: ensure content always visible even if main CSS fails to load */
+    .page-panel { display: none; }
+    .page-panel.active { display: block !important; }
+    .app-shell { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark">G</div>
+        <div>
+          <strong>Gate Trader</strong>
+          <small>Spot dashboard · Gate.io API</small>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="status-badge" class="status-pill">Connecting…</span>
+        <button id="refresh-all-btn" class="btn btn-ghost btn-sm">↻ Refresh</button>
+      </div>
+    </header>
+
+    <nav class="top-tabs">
+      <button class="top-tab active" data-tab="portfolio">Portfolio</button>
+      <button class="top-tab" data-tab="markets">All Coins</button>
+      <button class="top-tab" data-tab="groups">Groups</button>
+      <button class="top-tab" data-tab="history">History</button>
+    </nav>
+
+    <main class="app-main">
+      <div id="testnet-banner" class="banner hidden"></div>
+      <div id="error-banner" class="error-banner hidden"></div>
+
+      <div class="page-head">
+        <h1 id="page-title">Portfolio</h1>
+        <p id="page-subtitle" class="page-sub">Your spot wallet & allocation</p>
+      </div>
+
+      <!-- Portfolio -->
+      <section id="tab-portfolio" class="page-panel active">
+        <div id="portfolio-status" class="inline-status">Loading portfolio from Gate.io…</div>
+
+        <div class="hero-card portfolio-hero" id="portfolio-hero" role="button" tabindex="0" title="Click for full portfolio analysis">
+          <div class="hero-main">
+            <span class="hero-label">Total portfolio value</span>
+            <div class="hero-value" id="hero-total">—</div>
+            <div class="hero-meta" id="hero-meta">Waiting for data…</div>
+            <div class="hero-pnl" id="hero-pnl"></div>
+            <span class="hero-hint muted">Click chart for detailed analysis</span>
+          </div>
+          <div class="hero-chart-side">
+            <div id="donut-wrap" class="donut-wrap hidden">
+              <div id="donut-chart" class="donut"></div>
+              <div class="donut-center" id="donut-label">—</div>
+            </div>
+            <div id="portfolio-chart-wrap" class="portfolio-chart-wrap hidden">
+              <svg id="portfolio-chart" class="portfolio-chart" viewBox="0 0 280 72" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-grid" id="portfolio-summary"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Allocation</h2>
+            <span class="muted" id="portfolio-total-label"></span>
+          </div>
+          <div id="allocation-bars" class="allocation-bars"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Assets</h2>
+            <span class="muted">Click a row for full analysis</span>
+          </div>
+          <div class="table-wrap table-sticky">
+            <table id="portfolio-table" class="data-table">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Balance</th>
+                  <th>Price</th>
+                  <th>24h</th>
+                  <th>Value</th>
+                  <th>Share</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="portfolio-empty" class="empty-state hidden">
+            <p>No assets in your spot wallet yet.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Markets -->
+      <section id="tab-markets" class="page-panel">
+        <div id="markets-status" class="inline-status">Open this tab to load markets…</div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Markets</h2>
+            <span class="muted" id="markets-count"></span>
+          </div>
+          <div class="toolbar">
+            <div class="search-wrap">
+              <input type="search" id="market-search" placeholder="Search coins…" />
+            </div>
+            <div class="toolbar-actions">
+              <button id="select-all-btn" class="btn btn-ghost btn-sm">Select visible</button>
+              <button id="clear-select-btn" class="btn btn-ghost btn-sm">Clear</button>
+              <button id="create-group-btn" class="btn btn-primary" disabled>
+                Create group · <span id="selected-count">0</span>
+              </button>
+            </div>
+          </div>
+          <div id="selection-bar" class="selection-bar hidden">
+            <span><strong id="selection-bar-count">0</strong> coins selected</span>
+            <button id="selection-bar-create" class="btn btn-primary btn-sm">Create group</button>
+          </div>
+          <div id="markets-table-note" class="table-note muted hidden"></div>
+          <div class="table-wrap table-sticky">
+            <table id="markets-table" class="data-table">
+              <thead>
+                <tr>
+                  <th class="col-check"></th>
+                  <th>Coin</th>
+                  <th>Pair</th>
+                  <th>Price</th>
+                  <th>24h</th>
+                  <th>Volume</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Groups -->
+      <section id="tab-groups" class="page-panel">
+        <div id="groups-status" class="inline-status">Open this tab to load groups…</div>
+        <div id="groups-empty" class="empty-state card hidden">
+          <p><strong>No groups yet</strong></p>
+          <p class="muted">Go to All Coins, select cryptocurrencies, and create a group.</p>
+          <button class="btn btn-primary" data-goto="markets">Browse coins</button>
+        </div>
+        <div id="groups-list" class="groups-list"></div>
+      </section>
+
+      <!-- History -->
+      <section id="tab-history" class="page-panel">
+        <div id="history-status" class="inline-status">Open this tab to load transactions…</div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Transaction history</h2>
+            <span class="muted" id="history-count"></span>
+          </div>
+          <div class="toolbar history-toolbar">
+            <label class="filter-label">
+              Show
+              <select id="history-filter">
+                <option value="all">All transactions</option>
+                <option value="bot">Bot trades only</option>
+                <option value="website">Gate website only</option>
+                <option value="manual">Website &amp; manual (non-bot)</option>
+              </select>
+            </label>
+            <button id="history-refresh-btn" class="btn btn-ghost btn-sm">↻ Refresh</button>
+          </div>
+          <div class="table-wrap table-sticky history-table-wrap">
+            <table id="history-table" class="data-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Source</th>
+                  <th>Side</th>
+                  <th>Coin</th>
+                  <th>Amount</th>
+                  <th>Price</th>
+                  <th>Value</th>
+                  <th>Fee</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="history-empty" class="empty-state hidden">
+            <p>No transactions match this filter.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modals -->
+  <div id="group-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Create coin group</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          Group name
+          <input id="group-name-input" placeholder="e.g. Blue chips" />
+        </label>
+        <div id="group-preview-chips" class="chips"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Cancel</button>
+        <button id="group-modal-save" class="btn btn-primary">Create group</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="buy-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3 id="buy-modal-title">Buy group</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          Total amount (<span class="quote-label">USDT</span>)
+          <input id="buy-amount-input" type="number" min="0" step="any" placeholder="100" />
+        </label>
+        <div id="buy-split-preview" class="split-preview split-preview-empty">
+          <p class="split-preview-placeholder">Enter a total amount above to see how it will be split.</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Cancel</button>
+        <button id="buy-modal-confirm" class="btn btn-buy">Buy with split</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sell-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3 id="sell-modal-title">Sell</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted modal-desc">Select coins to sell. Leave amount blank to sell full available balance.</p>
+        <div class="sell-picker-toolbar">
+          <span class="sell-picker-label">Coins in group</span>
+          <div class="sell-picker-actions">
+            <button type="button" id="sell-select-all-btn" class="btn btn-ghost btn-sm">All with balance</button>
+            <button type="button" id="sell-clear-btn" class="btn btn-ghost btn-sm">Clear</button>
+          </div>
+        </div>
+        <div id="sell-coin-list" class="sell-coin-list scroll-panel"></div>
+        <div id="sell-split-preview" class="split-preview split-preview-empty">
+          <p class="split-preview-placeholder">Select coins above to preview what will be sold.</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Cancel</button>
+        <button id="sell-modal-confirm" class="btn btn-sell">Confirm sell</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="alloc-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3 id="alloc-modal-title">Allocation %</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted modal-desc">
+          Set % per coin (e.g. 75 = 75% of buy total). Leave blank for auto — remaining % is split equally. At 100% total, only coins with a set % are bought.
+        </p>
+        <div id="alloc-rows" class="alloc-rows"></div>
+        <p id="alloc-sum-hint" class="alloc-sum-hint"></p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Cancel</button>
+        <button id="alloc-modal-save" class="btn btn-primary">Save allocations</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="edit-coins-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3 id="edit-coins-title">Edit group coins</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted modal-desc">Add or remove coins from this group. Allocations for kept coins are preserved.</p>
+        <div class="edit-coins-toolbar">
+          <input type="search" id="edit-coins-search" placeholder="Search coins…" />
+          <div class="edit-coins-toolbar-actions">
+            <button type="button" id="edit-coins-select-visible" class="btn btn-ghost btn-sm">All visible</button>
+            <button type="button" id="edit-coins-clear" class="btn btn-ghost btn-sm">Clear</button>
+          </div>
+        </div>
+        <div id="edit-coins-list" class="edit-coins-list scroll-panel"></div>
+        <p class="muted edit-coins-count"><strong id="edit-coins-count">0</strong> coins selected</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Cancel</button>
+        <button id="edit-coins-save" class="btn btn-primary">Save coins</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="group-analysis-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box modal-wide modal-analysis">
+      <div class="modal-header">
+        <h3 id="group-analysis-title">Group analysis</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <div id="group-analysis-body" class="analysis-body">
+          <p class="muted">Loading…</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="coin-analysis-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box modal-wide modal-analysis">
+      <div class="modal-header">
+        <h3 id="coin-analysis-title">Asset analysis</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <div id="coin-analysis-body" class="analysis-body">
+          <p class="muted">Loading…</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="portfolio-analysis-modal" class="modal hidden">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-box modal-wide modal-analysis">
+      <div class="modal-header">
+        <h3>Portfolio analysis</h3>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+      <div class="modal-body">
+        <div class="analysis-toolbar">
+          <label class="inr-toggle">
+            <input type="checkbox" id="inr-display-toggle" />
+            Show all values in Indian Rupees (₹)
+          </label>
+          <span id="inr-rate-label" class="muted"></span>
+        </div>
+        <div id="portfolio-analysis-body" class="analysis-body"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/js/app.js?v=21"></script>
+</body>
+</html>

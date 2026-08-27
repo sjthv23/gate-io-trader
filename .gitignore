@@ -1,0 +1,15 @@
+.env
+.env.local
+portfolio_history.json
+*.pyc
+__pycache__/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

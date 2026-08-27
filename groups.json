@@ -1,0 +1,85 @@
+{
+  "groups": [
+    {
+      "id": "d42c72d36b1f",
+      "name": "test 1",
+      "coins": [
+        "FARTCOIN",
+        "ENA",
+        "JUP",
+        "MELANIA",
+        "SWARMS"
+      ],
+      "quote": "USDT",
+      "created_at": "2026-08-27T01:24:25.223757+00:00",
+      "updated_at": "2026-08-27T02:59:07.763022+00:00",
+      "allocations": {
+        "FARTCOIN": "",
+        "ENA": "",
+        "JUP": "",
+        "MELANIA": "",
+        "SWARMS": ""
+      }
+    },
+    {
+      "id": "c196a7ecd06d",
+      "name": "test_2",
+      "coins": [
+        "GT"
+      ],
+      "quote": "USDT",
+      "created_at": "2026-08-27T01:29:11.301206+00:00",
+      "updated_at": "2026-08-27T01:29:11.301222+00:00",
+      "allocations": {
+        "GT": ""
+      }
+    },
+    {
+      "id": "289efab95bd4",
+      "name": "test_search",
+      "coins": [
+        "LINK"
+      ],
+      "quote": "USDT",
+      "created_at": "2026-08-27T01:36:25.164922+00:00",
+      "updated_at": "2026-08-27T01:36:25.164938+00:00",
+      "allocations": {
+        "LINK": ""
+      }
+    },
+    {
+      "id": "fdf752e2675c",
+      "name": "test_buy 3",
+      "coins": [
+        "ANIME",
+        "AIXBT",
+        "KAS"
+      ],
+      "allocations": {
+        "ANIME": "50",
+        "AIXBT": "25",
+        "KAS": ""
+      },
+      "quote": "USDT",
+      "created_at": "2026-08-27T02:44:22.903235+00:00",
+      "updated_at": "2026-08-27T02:44:47.786469+00:00"
+    },
+    {
+      "id": "5d86f0d0fab7",
+      "name": "test_buy_4",
+      "coins": [
+        "WIF",
+        "BTC",
+        "ADA"
+      ],
+      "allocations": {
+        "WIF": "20",
+        "BTC": "50",
+        "ADA": "22"
+      },
+      "quote": "USDT",
+      "created_at": "2026-08-27T18:44:26.313851+00:00",
+      "updated_at": "2026-08-27T18:46:18.101695+00:00"
+    }
+  ]
+}
