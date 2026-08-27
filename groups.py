@@ -23,6 +23,10 @@ def _normalize_coin(coin: str) -> str:
     return coin.strip().upper().split("_")[0]
 
 
+def _fmt_amount(value: float, decimals: int = 8) -> str:
+    return f"{value:.{decimals}f}".rstrip("0").rstrip(".")
+
+
 def load_groups() -> list[dict[str, Any]]:
     if not GROUPS_PATH.exists():
         return []
@@ -401,9 +405,42 @@ class GroupTrader:
         quote = group.get("quote") or DEFAULT_QUOTE
         split = compute_buy_amounts(total, group["coins"], group.get("allocations") or {})
         self.client.warm_pair_cache(group["coins"], quote)
+        balances = {
+            b["currency"]: b for b in self.client.list_balances(include_zero=False)
+        }
+        tickers = self.client._public.get_tickers_for_coins(group["coins"], quote)
+        quote_row = balances.get(quote)
+        quote_available = float(quote_row["available"]) if quote_row else 0.0
+
+        for row in split["breakdown"]:
+            sym = row["coin"]
+            coin_row = balances.get(sym)
+            current = float(coin_row["available"]) if coin_row else 0.0
+            row["current_balance"] = coin_row["available"] if coin_row else "0"
+
+            if not row.get("included"):
+                row["balance_after"] = row["current_balance"]
+                continue
+
+            market = tickers.get(sym)
+            price = float(market["last"]) if market and market.get("last") else None
+            spend = float(row["amount"])
+            row["price"] = market.get("last") if market else None
+            if price and price > 0:
+                est_coin = spend / price
+                row["est_coin_amount"] = _fmt_amount(est_coin)
+                row["balance_after"] = _fmt_amount(current + est_coin)
+            else:
+                row["est_coin_amount"] = None
+                row["balance_after"] = row["current_balance"]
+
         issues = self.client.validate_buy_amounts(
             split["amounts"], quote, check_ticker=True
         )
+        if total > quote_available:
+            issues.append(
+                f"Insufficient {quote} balance — need {total:.2f}, have {quote_available:.2f}"
+            )
         min_quote = 3.0
         for coin in split["amounts"]:
             try:
@@ -412,11 +449,14 @@ class GroupTrader:
                 )
             except ValueError:
                 pass
+        quote_after = quote_available - total
         return {
             "group_id": group_id,
             "group_name": group["name"],
             "quote": quote,
             "allocations": group.get("allocations") or {},
+            "quote_balance": _fmt_amount(quote_available, 4),
+            "quote_balance_after": _fmt_amount(quote_after, 4),
             "issues": issues,
             "can_buy": len(issues) == 0,
             "min_order_quote": f"{min_quote:g}",
@@ -440,6 +480,8 @@ class GroupTrader:
         quote = group.get("quote") or DEFAULT_QUOTE
         holdings = self.client.get_group_holdings(group["coins"], quote)
         balances = {b["currency"]: b for b in self.client.list_balances(include_zero=False)}
+        quote_row = balances.get(quote)
+        quote_available = float(quote_row["available"]) if quote_row else 0.0
         selected = {_normalize_coin(c) for c in (coins or [])} if coins else None
 
         breakdown: list[dict[str, Any]] = []
@@ -481,6 +523,8 @@ class GroupTrader:
                     "pair": h["pair"],
                     "amount": sell_str,
                     "available": row["available"],
+                    "current_balance": row["available"],
+                    "balance_after": _fmt_amount(available - sell_amt),
                     "price": h.get("last"),
                     "est_value_quote": (
                         f"{est_value:.4f}".rstrip("0").rstrip(".") if est_value else None
@@ -506,6 +550,8 @@ class GroupTrader:
             "breakdown": breakdown,
             "summary_text": summary,
             "est_total_quote": f"{total_value:.4f}".rstrip("0").rstrip("."),
+            "quote_balance": _fmt_amount(quote_available, 4),
+            "quote_balance_after": _fmt_amount(quote_available + total_value, 4),
             "issues": issues,
             "can_sell": len(breakdown) > 0 and len(issues) == 0,
         }

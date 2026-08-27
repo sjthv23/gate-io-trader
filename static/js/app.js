@@ -1328,16 +1328,133 @@ async function saveAllocations() {
   }
 }
 
-function renderBuySplitPlaceholder(message = "Enter a total amount above to see how it will be split.") {
+function getQuoteBalanceFromPortfolio(quote) {
+  const assets = state.portfolio?.assets;
+  if (!assets) return null;
+  const row = assets.find((a) => (a.currency || "").toUpperCase() === (quote || state.quote).toUpperCase());
+  return row?.available ?? null;
+}
+
+function previewBalanceStripHtml(
+  quote,
+  current,
+  after,
+  { currentLabel = "Current balance", afterLabel = "After trade" } = {}
+) {
+  if (!current && !after) return "";
+  const afterHtml =
+    after != null && after !== ""
+      ? `<span class="trade-balance-item trade-balance-after">${afterLabel}: <strong>${after} ${quote}</strong></span>`
+      : "";
+  return `
+    <div class="trade-balance-banner preview-balance-strip">
+      <span class="trade-balance-item">${currentLabel}: <strong>${current ?? "0"} ${quote}</strong></span>
+      ${afterHtml}
+    </div>`;
+}
+
+const BUY_PREVIEW_COLS = `
+  <thead>
+    <tr>
+      <th>Coin</th>
+      <th>Current</th>
+      <th>You spend</th>
+      <th class="split-col-get">You get</th>
+      <th>After buy</th>
+    </tr>
+  </thead>`;
+
+const SELL_PREVIEW_COLS = `
+  <thead>
+    <tr>
+      <th>Coin</th>
+      <th>Current</th>
+      <th>You sell</th>
+      <th class="split-col-get">You get</th>
+      <th>Coin after</th>
+    </tr>
+  </thead>`;
+
+function previewDashCell(pending = false) {
+  return pending ? "<span class='muted'>…</span>" : "<span class='muted'>—</span>";
+}
+
+function buyBalanceRowsFromHoldings(group, { pending = false } = {}) {
+  const holdings = group?.holdings || [];
+  const dash = previewDashCell(pending);
+  if (!holdings.length) {
+    return `<tr><td colspan="5" class="muted preview-hint">No coins in this group.</td></tr>`;
+  }
+  return holdings
+    .map((h) => {
+      const bal = h.total || h.available || "0";
+      return `
+        <tr>
+          <td class="split-coin">${coinAvatar(h.coin, "sm")}<strong>${h.coin}</strong></td>
+          <td>${bal}</td>
+          <td>${dash}</td>
+          <td class="split-col-get">${dash}</td>
+          <td>${bal}</td>
+        </tr>`;
+    })
+    .join("");
+}
+
+function sellBalanceRowsFromHoldings(group, { pending = false } = {}) {
+  const holdings = (group?.holdings || []).filter((h) => parseFloat(h.available || 0) > 0);
+  const dash = previewDashCell(pending);
+  if (!holdings.length) {
+    return `<tr><td colspan="5" class="muted preview-hint">No coins with balance in this group.</td></tr>`;
+  }
+  return holdings
+    .map((h) => {
+      const bal = h.total || h.available || "0";
+      return `
+        <tr>
+          <td class="split-coin">${coinAvatar(h.coin, "sm")}<strong>${h.coin}</strong></td>
+          <td>${bal}</td>
+          <td>${dash}</td>
+          <td class="split-col-get">${dash}</td>
+          <td>${bal}</td>
+        </tr>`;
+    })
+    .join("");
+}
+
+function renderBuySplitPlaceholder(message = "Enter a total amount above to see spend and estimated coins.") {
+  const group = state.groups.find((g) => g.id === state.activeBuyGroupId);
+  const quote = group?.quote || state.quote;
+  const quoteBal = getQuoteBalanceFromPortfolio(quote);
   const box = $("#buy-split-preview");
   box.className = "split-preview split-preview-empty";
-  box.innerHTML = `<p class="split-preview-placeholder">${message}</p>`;
+  box.innerHTML = `
+    ${previewBalanceStripHtml(quote, quoteBal, null, {
+      currentLabel: `${quote} balance`,
+      afterLabel: `${quote} after buy`,
+    })}
+    <table class="split-table preview-balances-table">
+      ${BUY_PREVIEW_COLS}
+      <tbody>${buyBalanceRowsFromHoldings(group)}</tbody>
+    </table>
+    <p class="preview-hint">${message}</p>`;
 }
 
 function renderBuySplitLoading() {
+  const group = state.groups.find((g) => g.id === state.activeBuyGroupId);
+  const quote = group?.quote || state.quote;
+  const quoteBal = getQuoteBalanceFromPortfolio(quote);
   const box = $("#buy-split-preview");
   box.className = "split-preview split-preview-loading";
-  box.innerHTML = `<p class="split-preview-placeholder">Calculating split…</p>`;
+  box.innerHTML = `
+    ${previewBalanceStripHtml(quote, quoteBal, null, {
+      currentLabel: `${quote} balance`,
+      afterLabel: `${quote} after buy`,
+    })}
+    <table class="split-table preview-balances-table">
+      ${BUY_PREVIEW_COLS}
+      <tbody>${buyBalanceRowsFromHoldings(group, { pending: true })}</tbody>
+    </table>
+    <p class="preview-hint">Calculating split…</p>`;
 }
 
 let buyPreviewAbort = null;
@@ -1381,21 +1498,27 @@ function renderBuySplitPreview(preview) {
         return `
         <tr class="split-row-skipped">
           <td class="split-coin">${coinAvatar(row.coin, "sm")}<strong>${row.coin}</strong></td>
-          <td class="split-rule"><span class="split-rule-badge rule-skipped">Skip</span> ${row.rule_text || ""}</td>
-          <td class="split-pct">—</td>
+          <td class="muted">${row.current_balance || "0"}</td>
           <td class="split-amt muted">—</td>
+          <td class="split-col-get muted">—</td>
+          <td class="muted">${row.balance_after || row.current_balance || "0"}</td>
         </tr>`;
       }
-      const ruleClass =
-        row.rule === "fixed" ? "rule-fixed" : row.rule === "auto" ? "rule-auto" : "rule-equal";
-      const ruleBadge =
-        row.rule === "fixed" ? "Set %" : row.rule === "auto" ? "Auto" : "Equal";
+      const getAmt = row.est_coin_amount
+        ? `<strong>${row.est_coin_amount}</strong> <span class="muted">${row.coin}</span>`
+        : "<span class='muted'>—</span>";
+      const spendAmt = `<strong>${fmtNum(row.amount, 4)}</strong> <span class="muted">${quote}</span>`;
+      const ruleHint =
+        row.rule_text
+          ? `<div class="split-rule-hint muted">${row.pct_of_total}% · ${row.rule_text}</div>`
+          : "";
       return `
         <tr>
-          <td class="split-coin">${coinAvatar(row.coin, "sm")}<strong>${row.coin}</strong></td>
-          <td class="split-rule"><span class="split-rule-badge ${ruleClass}">${ruleBadge}</span> ${row.rule_text || ""}</td>
-          <td class="split-pct">${row.pct_of_total}%</td>
-          <td class="split-amt"><strong>${fmtNum(row.amount, 4)}</strong> <span class="muted">${quote}</span></td>
+          <td class="split-coin">${coinAvatar(row.coin, "sm")}<strong>${row.coin}</strong>${ruleHint}</td>
+          <td>${row.current_balance || "0"}</td>
+          <td class="split-amt">${spendAmt}</td>
+          <td class="split-col-get">${getAmt}</td>
+          <td>${row.balance_after || "—"}</td>
         </tr>`;
     })
     .join("");
@@ -1417,8 +1540,16 @@ function renderBuySplitPreview(preview) {
   const buyBtn = $("#buy-modal-confirm");
   if (buyBtn) buyBtn.disabled = !canBuy;
 
+  const balanceStrip = previewBalanceStripHtml(
+    quote,
+    preview.quote_balance,
+    preview.quote_balance_after,
+    { currentLabel: `${quote} balance`, afterLabel: `${quote} after buy` }
+  );
+
   box.className = "split-preview";
   box.innerHTML = `
+    ${balanceStrip}
     <div class="split-preview-head">
       <div>
         <div class="split-preview-total">${fmtNum(total, 2)} ${quote}</div>
@@ -1435,17 +1566,19 @@ function renderBuySplitPreview(preview) {
       <thead>
         <tr>
           <th>Coin</th>
-          <th>How it's calculated</th>
-          <th>% of buy</th>
+          <th>Current</th>
           <th>You spend</th>
+          <th class="split-col-get">You get</th>
+          <th>After buy</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
       <tfoot>
         <tr>
           <td colspan="2" class="split-foot-label">Total (active coins)</td>
-          <td class="split-pct"><strong>100%</strong></td>
           <td class="split-amt"><strong>${fmtNum(total, 2)}</strong> ${quote}</td>
+          <td class="split-col-get">—</td>
+          <td>—</td>
         </tr>
       </tfoot>
     </table>
@@ -1545,6 +1678,11 @@ function renderSellCoinList(group) {
     .map((h) => {
       const checked = state.sellSelected.has(h.coin);
       const amt = state.sellAmounts[h.coin] || "";
+      const locked = parseFloat(h.locked || 0);
+      const balLabel =
+        locked > 0
+          ? `Balance: ${h.total} (${h.available} avail)`
+          : `Balance: ${h.total || h.available}`;
       return `
       <div class="sell-coin-row ${checked ? "selected" : ""}" data-sell-coin="${h.coin}">
         <label class="sell-coin-check">
@@ -1552,7 +1690,7 @@ function renderSellCoinList(group) {
           ${coinAvatar(h.coin, "sm")}
           <strong>${h.coin}</strong>
         </label>
-        <div class="sell-coin-bal muted">Avail: ${h.available}</div>
+        <div class="sell-coin-bal muted">${balLabel}</div>
         <div class="sell-coin-val">${h.value_quote ? `≈ ${fmtNum(h.value_quote, 2)} ${group.quote}` : "—"}</div>
         <input type="number" class="sell-coin-amt" data-sell-amount="${h.coin}"
           placeholder="Full balance" min="0" step="any" value="${amt}" ${checked ? "" : "disabled"} />
@@ -1603,18 +1741,42 @@ function sellClearSelection() {
   renderSellSplitPlaceholder();
 }
 
-function renderSellSplitPlaceholder(message = "Select coins above to preview what will be sold.") {
+function renderSellSplitPlaceholder(message = "Select coins above to preview sell amounts and what you receive.") {
+  const group = state.groups.find((g) => g.id === state.activeSellGroupId);
+  const quote = group?.quote || state.quote;
+  const quoteBal = getQuoteBalanceFromPortfolio(quote);
   const box = $("#sell-split-preview");
   box.className = "split-preview split-preview-empty";
-  box.innerHTML = `<p class="split-preview-placeholder">${message}</p>`;
+  box.innerHTML = `
+    ${previewBalanceStripHtml(quote, quoteBal, null, {
+      currentLabel: `${quote} balance`,
+      afterLabel: `${quote} after sell`,
+    })}
+    <table class="split-table preview-balances-table">
+      ${SELL_PREVIEW_COLS}
+      <tbody>${sellBalanceRowsFromHoldings(group)}</tbody>
+    </table>
+    <p class="preview-hint">${message}</p>`;
   const btn = $("#sell-modal-confirm");
   if (btn) btn.disabled = true;
 }
 
 function renderSellSplitLoading() {
+  const group = state.groups.find((g) => g.id === state.activeSellGroupId);
+  const quote = group?.quote || state.quote;
+  const quoteBal = getQuoteBalanceFromPortfolio(quote);
   const box = $("#sell-split-preview");
   box.className = "split-preview split-preview-loading";
-  box.innerHTML = `<p class="split-preview-placeholder">Calculating sell preview…</p>`;
+  box.innerHTML = `
+    ${previewBalanceStripHtml(quote, quoteBal, null, {
+      currentLabel: `${quote} balance`,
+      afterLabel: `${quote} after sell`,
+    })}
+    <table class="split-table preview-balances-table">
+      ${SELL_PREVIEW_COLS}
+      <tbody>${sellBalanceRowsFromHoldings(group, { pending: true })}</tbody>
+    </table>
+    <p class="preview-hint">Calculating sell preview…</p>`;
 }
 
 let sellPreviewAbort = null;
@@ -1630,9 +1792,10 @@ function renderSellSplitPreview(preview) {
     .map((row) => `
       <tr>
         <td class="split-coin">${coinAvatar(row.coin, "sm")}<strong>${row.coin}</strong></td>
+        <td>${row.current_balance || row.available || "0"}</td>
         <td class="split-amt"><strong>${row.amount}</strong> <span class="muted">${row.coin}</span></td>
-        <td class="split-pct">${row.price ? fmtNum(row.price, 4) : "—"} ${quote}</td>
-        <td class="split-amt"><strong>${row.est_value_quote || "—"}</strong> <span class="muted">${quote}</span></td>
+        <td class="split-col-get"><strong>${row.est_value_quote || "—"}</strong> <span class="muted">${quote}</span></td>
+        <td>${row.balance_after || "—"}</td>
       </tr>`)
     .join("");
 
@@ -1648,12 +1811,20 @@ function renderSellSplitPreview(preview) {
   const btn = $("#sell-modal-confirm");
   if (btn) btn.disabled = !canSell;
 
+  const balanceStrip = previewBalanceStripHtml(
+    quote,
+    preview.quote_balance,
+    preview.quote_balance_after,
+    { currentLabel: `${quote} balance`, afterLabel: `${quote} after sell` }
+  );
+
   box.className = "split-preview";
   box.innerHTML = `
+    ${balanceStrip}
     <div class="split-preview-head">
       <div>
         <div class="split-preview-total">${fmtNum(total, 2)} ${quote}</div>
-        <div class="split-preview-sub">estimated from ${breakdown.length} sell order(s)</div>
+        <div class="split-preview-sub">estimated receive from ${breakdown.length} sell order(s)</div>
       </div>
       <div class="split-preview-mode sell-mode-badge">Sell preview</div>
     </div>
@@ -1662,17 +1833,18 @@ function renderSellSplitPreview(preview) {
       <thead>
         <tr>
           <th>Coin</th>
+          <th>Current</th>
           <th>You sell</th>
-          <th>Price</th>
-          <th>Est. value</th>
+          <th class="split-col-get">You get</th>
+          <th>Coin after</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
       <tfoot>
         <tr>
-          <td class="split-foot-label">Estimated total</td>
-          <td colspan="2"></td>
-          <td class="split-amt"><strong>${fmtNum(total, 2)}</strong> ${quote}</td>
+          <td colspan="3" class="split-foot-label">Total you receive</td>
+          <td class="split-col-get"><strong>${fmtNum(total, 2)}</strong> ${quote}</td>
+          <td>—</td>
         </tr>
       </tfoot>
     </table>
