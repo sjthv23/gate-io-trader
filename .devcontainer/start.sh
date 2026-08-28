@@ -2,6 +2,14 @@
 set -euo pipefail
 cd /workspaces/gate-io-trader
 
+# Load API keys from .env if present (not committed to git)
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
 # Start FastAPI if not already running
 if ! pgrep -f "uvicorn web_app:app" >/dev/null 2>&1; then
   nohup python3 -m uvicorn web_app:app --host 0.0.0.0 --port 8765 > /tmp/uvicorn.log 2>&1 &
